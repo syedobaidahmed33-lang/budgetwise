@@ -1,0 +1,85 @@
+{% extends 'tracker/base.html' %}
+{% block title %}| Transactions{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>All Transactions</h2>
+  <a href="{% url 'add_transaction' %}" class="btn btn-success">➕ Add</a>
+</div>
+
+<!--
+  Option B — Advanced JavaScript Interactivity: Live Search Filter
+  This input field is wired up by static/tracker/js/transaction_filter.js.
+  As the user types, rows in the table below are shown/hidden in real time
+  without any page reload or server request. The JS listens on the 'input'
+  event (not 'click') which satisfies the assignment's event-type requirement.
+-->
+<div class="mb-3">
+  <input
+    type="text"
+    id="txn-search"
+    class="form-control"
+    placeholder="🔍 Search by description or category…"
+    autocomplete="off"
+  >
+  <small id="search-count" class="text-muted mt-1 d-block"></small>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0" id="txn-table">
+      <thead class="table-light">
+        <tr>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Category</th>
+          <th>Amount</th>
+          <th>Type</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="txn-tbody">
+        {% for txn in transactions %}
+        <tr>
+          <td>{{ txn.date }}</td>
+          <!-- data-description and data-category are read by the JS filter -->
+          <td data-description="{{ txn.description|lower }}">{{ txn.description }}</td>
+          <td data-category="{{ txn.category|lower }}">{{ txn.category|title }}</td>
+          <td>${{ txn.amount }}</td>
+          <td>
+            <span class="badge {% if txn.is_income %}bg-success{% else %}bg-danger{% endif %}">
+              {% if txn.is_income %}Income{% else %}Expense{% endif %}
+            </span>
+          </td>
+          <td>
+            <form method="post" action="{% url 'delete_transaction' txn.pk %}" onsubmit="return confirm('Delete this transaction?')">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr id="empty-row">
+          <td colspan="6" class="text-center text-muted py-4">No transactions yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Message shown when the search filter returns zero results -->
+<p id="no-results" class="text-center text-muted mt-3" style="display:none;">
+  No transactions match your search.
+</p>
+{% endblock %}
+
+{% block extra_js %}
+<!--
+  Load the client-side search script (Option B — Advanced JS Interactivity).
+  This file lives at static/tracker/js/transaction_filter.js and handles
+  all the filtering logic — no jQuery or additional libraries needed.
+-->
+{% load static %}
+<script src="{% static 'tracker/js/transaction_filter.js' %}"></script>
+{% endblock %}

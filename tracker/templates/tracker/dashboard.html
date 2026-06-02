@@ -1,0 +1,144 @@
+{% extends 'tracker/base.html' %}
+{% block title %}| Dashboard{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Dashboard — {{ current_month }}</h2>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card text-center p-3">
+      <div class="text-muted small">Total Income</div>
+      <div class="fs-3 fw-bold text-success">${{ total_income }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center p-3">
+      <div class="text-muted small">Total Expenses</div>
+      <div class="fs-3 fw-bold text-danger">${{ total_expenses }}</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center p-3">
+      <div class="text-muted small">Balance</div>
+      <div class="fs-3 fw-bold {% if balance >= 0 %}text-success{% else %}text-danger{% endif %}">${{ balance }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Option C: Data Visualization — Spending Chart -->
+  <div class="col-md-6">
+    <div class="card p-4">
+      <h5 class="mb-3">Spending by Category</h5>
+      <!-- Canvas element where Chart.js renders the doughnut chart -->
+      <canvas id="spendingChart" height="260"></canvas>
+      <p id="chart-empty" class="text-muted text-center mt-3" style="display:none;">
+        No expense data for this month yet.
+      </p>
+    </div>
+  </div>
+
+  <!-- Recent transactions preview -->
+  <div class="col-md-6">
+    <div class="card p-4">
+      <h5 class="mb-3">Recent Transactions</h5>
+      {% if recent %}
+      <ul class="list-group list-group-flush">
+        {% for txn in recent %}
+        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+          <div>
+            <div class="fw-semibold">{{ txn.description }}</div>
+            <small class="text-muted">{{ txn.category|title }} · {{ txn.date }}</small>
+          </div>
+          <span class="badge {% if txn.is_income %}bg-success{% else %}bg-danger{% endif %} fs-6">
+            {% if txn.is_income %}+{% else %}-{% endif %}${{ txn.amount }}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      <a href="{% url 'transactions' %}" class="btn btn-sm btn-outline-secondary mt-3">View all</a>
+      {% else %}
+      <p class="text-muted">No transactions yet. <a href="{% url 'add_transaction' %}">Add one →</a></p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Load Chart.js from CDN — required for Option C (Data Visualization) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+  /**
+   * Option C — Data Visualization: Spending Doughnut Chart
+   *
+   * Fetches monthly category totals from /api/monthly-summary/ (a Django
+   * JsonResponse endpoint defined in views.py) and renders a doughnut chart
+   * using Chart.js. The fetch happens on every page load so the chart always
+   * reflects the current state of the database — data is never hardcoded here.
+   */
+  (function () {
+    // Colour palette for chart slices — one per category slot
+    const COLOURS = [
+      '#198754', '#dc3545', '#0d6efd', '#ffc107',
+      '#6f42c1', '#0dcaf0', '#fd7e14', '#6c757d'
+    ];
+
+    /**
+     * Fetches aggregated spending data and renders the Chart.js doughnut.
+     * If the API returns no data (no expenses this month), shows a fallback
+     * message instead of rendering an empty chart.
+     */
+    async function renderSpendingChart() {
+      try {
+        // Fetch the JSON endpoint — defined as monthly_summary_api in views.py
+        const response = await fetch("{% url 'monthly_summary_api' %}");
+        const { labels, data } = await response.json();
+
+        if (labels.length === 0) {
+          // No expense data — show the fallback message, hide the canvas
+          document.getElementById('chart-empty').style.display = 'block';
+          document.getElementById('spendingChart').style.display = 'none';
+          return;
+        }
+
+        // Build and mount the Chart.js doughnut chart onto the canvas element
+        const ctx = document.getElementById('spendingChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: COLOURS.slice(0, labels.length),
+              borderWidth: 2,
+              borderColor: '#fff',
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' },
+              tooltip: {
+                callbacks: {
+                  // Format tooltip values as dollar amounts
+                  label: ctx => ` $${ctx.parsed.toFixed(2)}`
+                }
+              }
+            }
+          }
+        });
+
+      } catch (err) {
+        // Log fetch errors to the console without breaking the page
+        console.error('Chart fetch failed:', err);
+      }
+    }
+
+    // Run immediately when the page loads
+    renderSpendingChart();
+  })();
+</script>
+{% endblock %}
